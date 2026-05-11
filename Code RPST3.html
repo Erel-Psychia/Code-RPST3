@@ -1,0 +1,734 @@
+<html>
+<head>
+<title>Code RPS3t</title>
+</head>
+<body>
+<noscript>Javascript cannot be used. The game cannot be played.</noscript>
+<script>
+
+//Start of fun
+
+//Random number generator
+function random(min, max)
+{
+return min+Math.floor(Math.random()*(max-min+1));
+}
+
+//Element event attachment
+function action(element_target, element_function)
+{
+element_target.addEventListener("click", element_function);
+}
+
+//Element maker
+function add(element_name, element_text=null, element_parent=null)
+{
+const target=document.createElement(element_name);
+target.textContent=element_text;
+if(random(0, 3)===0)
+target.style.fontSize=random(0, 2, true)+"rem";
+target.style.margin=random(5, 25)+"px";
+if(random(0, 3)===0)
+target.style.transform="rotate("+random(-25, 25)+"deg)";
+if(element_parent===false)
+return target;
+if(element_parent!==null)
+element_parent.appendChild(target);
+else
+document.body.appendChild(target);
+return target;
+}
+
+//Element restarter
+function clear(element_target)
+{
+element_target.innerHTML="";
+}
+
+//Element color provider
+function color(element_target, element_color)
+{
+element_target.style.background=element_color;
+}
+
+//Interface objects
+const bar=add("div");
+const board=add("div");
+const status=add("p");
+
+//Interface foundation
+status.style.background="cyan";
+status.style.fontSize="2rem";
+status.setAttribute("aria-live", "polite");
+status.setAttribute("aria-atomic", "true");
+
+//Accessible text announcer
+function say(status_text)
+{
+status.textContent=status_text;
+}
+
+//Game stage and time trackers
+let game_stage=0;
+let opponent_time=null;
+let player_time=null;
+let stage_time=null;
+
+//Clear time trackers
+function stop_tracking()
+{
+clearTimeout(opponent_time);
+clearTimeout(player_time);
+clearTimeout(stage_time);
+}
+
+//Game menu construction
+function main_menu()
+{
+//Clear game interface, stage, and time trackers
+clear(bar);
+clear(board);
+game_stage=0;
+stop_tracking();
+//Greet and build
+say("Welcome to Code RPST3");
+add("h1", "Code RPST3", bar);
+let target;
+target=add("button", "Play", board);
+action(target, ()=>play_game());
+target=add("button", "How to play", board);
+action(target, ()=>play_how());
+target=add("button", "Reset", board);
+action(target, ()=>reset_game());
+}
+
+
+//Classes
+class phone
+{
+//Phone class for the entire game
+keys=[];
+objects=[];
+
+//Reset value after creation
+constructor()
+{
+this.reset();
+}
+
+//Check if the squares are full
+full()
+{
+//If not in stage 2 or there is no winner, do nothing
+if(game_stage!==2||winner===null)
+return false;
+//Filled square monitor
+let scan=0;
+//Obtain the number of keys
+let total=this.keys.length;
+//Check for disabled keys
+for(let number=0; number<total; number++)
+{
+if(this.keys[number].disabled===true)
+scan++;
+}
+return scan===total;
+}
+
+//Reset phone keys
+reset()
+{
+//Prepare the keypad
+this.keys=[];
+this.objects=[];
+for(let number=0; number<9; number++)
+{
+const key=add("button", number+1, false);
+color(key, "yellow");
+action(key, ()=>fill_square(key));
+this.keys.push(key);
+}
+//Prepare object keys
+let target;
+target=add("button", "*", false);
+color(target, "white");
+action(target, ()=>choose_object(0));
+this.objects.push(target);
+target=add("button", "0", false);
+color(target, "white");
+action(target, ()=>choose_object(1));
+this.objects.push(target);
+target=add("button", "#", false);
+color(target, "white");
+action(target, ()=>choose_object(2));
+this.objects.push(target);
+}
+
+//Show phone keys
+show()
+{
+//Otherwise, prepare the entire keypad
+clear(board);
+let total=this.keys.length;
+for(let number=0; number<total; number++)
+board.appendChild(this.keys[number]);
+total=this.objects.length;
+for(let number=0; number<total; number++)
+board.appendChild(this.objects[number]);
+}
+
+//End
+}
+
+//Game keypad
+const dial=new phone();
+
+class character
+{
+//Character class
+
+//Variables
+marker;
+move;
+name;
+score;
+stun;
+tick;
+
+//Reset values after creation
+constructor()
+{
+this.reset();
+}
+
+//Check if this character has marked a square
+check_square(number)
+{
+//If the square is out of range, do nothing
+if(number<1||number>9)
+return false;
+//Otherwise, check as normal
+return dial.keys[number-1].textContent===this.marker;
+}
+
+//Check if this character has a line in the square
+check_line(first, second, third)
+{
+return this.check_square(first)&&this.check_square(second)&&this.check_square(third);
+}
+
+//Check if this character has a winning line in the square
+check_victory()
+{
+return this.check_line(1, 2, 3)||this.check_line(4, 5, 6)||this.check_line(7, 8, 9)||this.check_line(1, 4, 7)||this.check_line(2, 5, 8)||this.check_line(3, 6, 9)||this.check_line(1, 5, 9)||this.check_line(3, 5, 7);
+}
+
+//Press a square randomly
+press()
+{
+//If not in stage 2, do nothing
+if(game_stage!==2)
+return;
+//Obtain remaining squares
+const free=dial.keys.filter(key=>key.disabled===false);
+//Obtain the amount of remaining squares
+const total=free.length;
+//If there are no remaining squares, do nothing
+if(total===0)
+return;
+//Choose a random square and press it
+const target=free[random(0, total-1)];
+fill_square(target);
+}
+
+//Reset character completely or optionally provide a name
+reset(mode)
+{
+if(mode===true||this.score===undefined)
+this.score=0;
+else if(typeof mode==="string")
+{
+this.marker=mode;
+this.name=mode+random(0, 1000);
+}
+this.move=0;
+this.stun=false;
+this.tick=10;
+}
+
+//End
+}
+
+//Game character spots
+const opponent=new character();
+const player=new character();
+let winner=null;
+
+//Game initializer
+function play_game()
+{
+//Reset characters
+opponent.reset("O");
+player.reset("X");
+//Prepare the first stage for the first time and show the phone keys
+first_stage(true);
+dial.show();
+}
+
+//Build the first stage
+function first_stage(first)
+{
+//Adjust game stage and stop time trackers
+game_stage=1;
+stop_tracking();
+//Ensure that there are no winners perceived
+winner=null;
+//Update game status
+update_game();
+//If the stage is built for the first time, announce status first
+if(first===true)
+{
+say(player.name+" with a score of "+player.score+" faces off against "+opponent.name+" with a score of "+opponent.score+".");
+player_time=setTimeout(()=>tick_pressure(), random(5000, 15000));
+}
+//Otherwise, perform tick pressure immediately
+tick_pressure();
+}
+
+//Game updater
+function update_game()
+{
+//Clear game bar and prepare game description
+clear(bar);
+let stage;
+if(game_stage===1)
+stage="Stage 1: Rock Paper Scissors.";
+else if(game_stage===2)
+stage="Stage 2: Tic-Tac-Toe.";
+else if(game_stage===3)
+stage="Rolling controller...";
+//Build game bar
+let target;
+target=add("h1", stage, bar);
+color(target, "green");
+target=add("p", player.name+". Score: "+player.score+". Ticks: "+player.tick+".", bar);
+color(target, "blue");
+target=add("p", opponent.name+". Score: "+opponent.score+". Ticks: "+opponent.tick+".", bar);
+color(target, "red");
+target=add("button", "pause", bar);
+action(target, ()=>main_menu());
+color(target, "black");
+}
+
+//Pressure the player to choose an object
+function tick_pressure()
+{
+say("Rock Paper Scissors!");
+player_time=setTimeout(()=>choose_object(random(0, 2)), random(200, 600)+(player.tick*1000));
+}
+
+//The player chooses an object
+function choose_object(choice)
+{
+//If not in stage 1, do nothing
+if(game_stage!==1)
+return;
+//List object names for making move announcements
+const objects=["Rock", "Paper", "Scissors"];
+//Player and opponent status papers
+let opponent_status;
+let player_status;
+//If the player is stunned
+if(player.stun===true)
+{
+//Report player status
+say(player.name+" is stunned!");
+//Give the opponent a free turn
+winner=opponent;
+//Take the stun and move on
+player.stun=false;
+setTimeout(()=>second_stage(), random(3000, 9000));
+return;
+}
+//Otherwise, announce and record the player move
+player_status=player.name+" chose "+objects[choice]+"!";
+player.move=choice;
+//If the opponent is stunned
+if(opponent.stun===true)
+{
+//Report player and opponent status
+say(player_status+" "+opponent.name+" is stunned!");
+//Give the player a free turn
+winner=player;
+//Take the stun and move on
+opponent.stun=false;
+setTimeout(()=>second_stage(), random(3000, 9000));
+return;
+}
+//Otherwise, create opponent move
+const anti_choice=random(0, 2);
+//Announce and record the opponent move
+opponent_status=opponent.name+" chose "+objects[anti_choice]+"!";
+opponent.move=anti_choice;
+//Draw
+if(choice===anti_choice)
+{
+say(player_status+" "+opponent_status+" Draw! Try again.");
+setTimeout(()=>first_stage(), random(3000, 9000));
+return;
+}
+//Player wins
+if((choice===0&&anti_choice===2)||(choice===(anti_choice-1)))
+{
+say(player_status+" "+opponent_status+" Victory!");
+winner=player;
+setTimeout(()=>second_stage(), random(3000, 9000));
+}
+//Opponent wins
+else if((anti_choice===0&&choice===2)||(anti_choice===(choice-1)))
+{
+say(player_status+" "+opponent_status+" Defeat!");
+winner=opponent;
+setTimeout(()=>second_stage(), random(3000, 9000));
+//Allow the opponent to make automatic decisions
+const thoughtful_winner=winner;
+if(thoughtful_winner!==null)
+opponent_time=setTimeout(()=>thoughtful_winner.press(), random(5000, 15000));
+}
+}
+
+//Build the second stage
+function second_stage()
+{
+//If no one finished the first stage, do nothing
+if(winner===null)
+{
+say("No winner from stage 1!");
+return;
+}
+//Clear player time and make an announcement
+clearTimeout(player_time);
+say(winner.name+" must now fill an empty square");
+//Adjust game stage and update game
+game_stage=2;
+update_game();
+}
+
+//A square is filled
+function fill_square(target)
+{
+//Do not press if there is no winner from stage 1
+if(winner===null)
+{
+say("No winner from stage 1!");
+return;
+}
+//If not in stage 2, do nothing
+if(game_stage!==2)
+{
+say("Currently not in stage 2!");
+return;
+}
+//Do not press if the key is disabled
+if(target.disabled===true)
+{
+say("Occupied square!");
+return;
+}
+//Have a small chance of not working properly
+if(random(0, 10)===0)
+{
+say("Error. Please try again.");
+//Ensure that the opponent will try again
+if(winner===opponent)
+opponent_time=setTimeout(()=>winner.press(), random(5000, 15000));
+return;
+}
+//Otherwise, color the square, mark it, and disable it
+say(winner.name+" fills square "+target.textContent+". 1 point awarded.");
+if(winner===player)
+color(target, "orange");
+else if(winner===opponent)
+{
+color(target, "violet");
+clearTimeout(opponent_time);
+}
+target.textContent=winner.marker;
+target.disabled=true;
+//Give the winner a score and check for winning conditions
+winner.score++;
+setTimeout(()=>check_outcome(), random(300, 900));
+}
+
+//Check for winning conditions
+function check_outcome()
+{
+//If not in stage 2, do nothing
+if(game_stage!==2)
+{
+say("Currently not in stage 2!");
+return;
+}
+//If there is no winner, do nothing
+if(winner===null)
+{
+say("No winner from stage 1!");
+return;
+}
+//Check if the winner has a winning line in the squares
+if(winner.check_victory()===true)
+{
+say(winner.name+" forms a winning line. Congratulations! Experiment "+random(0, 2000000000)+" is now complete. The information gathered is invaluable. Thank you for your participation.");
+setTimeout(()=>main_menu(), random(7000, 21000));
+return;
+}
+//Check if the squares are full
+if(dial.full()===true)
+{
+say("All squares are full! Game over.");
+setTimeout(()=>main_menu(), random(7000, 21000));
+return;
+}
+//Otherwise, manage chemical reactions
+say("Calculating "+random(0, 2000000000)+" possibilities, please wait...");
+setTimeout(()=>roll_dice(), random(3000, 9000));
+}
+
+//Manage chemical reactions
+function roll_dice()
+{
+//If there is no winner, do nothing
+if(winner===null)
+{
+say("No winner from stage 1!");
+return;
+}
+//Adjust game stage and update game
+game_stage=3;
+update_game();
+//Roll the die
+const dice=random(1, 6);
+//Obtain the losing player
+let suffer;
+if(winner===player)
+suffer=opponent;
+else if(winner===opponent)
+suffer=player;
+//Random insulting paper
+const victory_kind=random(1, 10);
+let victory="Chemical reaction suppressed";
+//If the roll is high, change the playing field
+if(dice>3)
+{
+//Rock tick
+if(winner.move===0)
+{
+//Time is reduced
+if(suffer.tick>0)
+{
+suffer.tick--;
+if(victory_kind===1)
+victory=suffer.name+" suffered temporal damage!";
+if(victory_kind===2)
+victory="Temporal damage for "+suffer.name+"!";
+if(victory_kind===3)
+victory=suffer.name+" is running out of time!";
+if(victory_kind===4)
+victory=suffer.name+", look at the clock!";
+if(victory_kind===5)
+victory="Can "+suffer.name+" handle "+suffer.tick+" seconds of decision making time?";
+if(victory_kind===6)
+victory="The world is becoming faster.";
+if(victory_kind===7)
+victory="Clock express!";
+if(victory_kind===8)
+victory="Rock guitars are ticking!";
+if(victory_kind===9)
+victory="Your points suffered rock damage!";
+if(victory_kind===10)
+victory="Earthquake...";
+}
+//Time empty
+else
+{
+if(victory_kind===1)
+victory="Time is up, "+suffer.name+"!";
+if(victory_kind===2)
+victory="0 seconds, "+suffer.name+"!";
+if(victory_kind===3)
+victory="Someone's clock was taken by the rock!";
+if(victory_kind===4)
+victory="No more decisions for "+suffer.name+"...";
+if(victory_kind===5)
+victory="The world is moving too quickly.";
+if(victory_kind===6)
+victory="Clock stolen!";
+if(victory_kind===7)
+victory="Where did time go?";
+if(victory_kind===8)
+victory="Time is missing!";
+if(victory_kind===9)
+victory="Time is gold.";
+if(victory_kind===10)
+victory="We will miss you!";
+}
+}
+//Paper Tax
+else if(winner.move===1)
+{
+//Points are reduced
+if(suffer.score>0)
+{
+suffer.score--;
+if(victory_kind===1)
+victory=suffer.name+" lost one point!";
+if(victory_kind===2)
+victory="Taxy or tax?";
+if(victory_kind===3)
+victory=suffer.name+" has paid the tax of defeat!";
+if(victory_kind===4)
+victory=suffer.name+" must pay...";
+if(victory_kind===5)
+victory="The tax officer collects one point from "+suffer.name+".";
+if(victory_kind===6)
+victory="Payment is tasty!";
+if(victory_kind===7)
+victory="Payment is evil!";
+if(victory_kind===8)
+victory="Dirty paper.";
+if(victory_kind===9)
+victory="Dirty cash.";
+if(victory_kind===10)
+victory="The paper demands sacrifice!";
+}
+//Points empty
+else
+{
+if(victory_kind===1)
+victory="Broken wallet!";
+if(victory_kind===2)
+victory="Missing wallet!";
+if(victory_kind===3)
+victory="Stolen wallet!";
+if(victory_kind===4)
+victory="Empty wallet!";
+if(victory_kind===5)
+victory="Empty wallet!";
+if(victory_kind===6)
+victory="Empty pocket!";
+if(victory_kind===7)
+victory="Empty hand!";
+if(victory_kind===8)
+victory="Rich!";
+if(victory_kind===9)
+victory="Poor...";
+if(victory_kind===10)
+victory="No more scores.";
+}
+}
+//Scissor toes
+else if(winner.move===2)
+{
+suffer.stun=true;
+if(victory_kind===1)
+victory="Surprise!";
+if(victory_kind===2)
+victory="Surprise, "+suffer.name+"!";
+if(victory_kind===3)
+victory="There's a stunning beauty!";
+if(victory_kind===4)
+victory=suffer.name+" froze!";
+if(victory_kind===5)
+victory="Someone dropped scissors on their toes!";
+if(victory_kind===6)
+victory=suffer.name+" must go to the hospital!";
+if(victory_kind===7)
+victory=suffer.name+" falls!";
+if(victory_kind===8)
+victory=suffer.name+" can not move!";
+if(victory_kind===9)
+victory=suffer.name+" have lost their toes!";
+if(victory_kind===10)
+victory="Unable to move.";
+}
+//Nothing happened
+else
+{
+if(victory_kind===1)
+victory="...";
+if(victory_kind===2)
+victory="???";
+if(victory_kind===3)
+victory="---";
+if(victory_kind===4)
+victory="___";
+if(victory_kind===5)
+victory="***";
+if(victory_kind===6)
+victory="!!!";
+if(victory_kind===7)
+victory=":::";
+if(victory_kind===8)
+victory="+++";
+if(victory_kind===9)
+victory="$$$";
+if(victory_kind===10)
+victory="===";
+}
+}
+//Display victory text and go back to first stage
+say(victory);
+setTimeout(()=>first_stage(), random(3000, 9000));
+}
+
+//Playing guide construction
+function play_how()
+{
+clear(bar);
+clear(board);
+let target;
+add("h1", "How to play", bar);
+target=add("button", "Back to main menu", bar);
+action(target, main_menu);
+add("p", "RPST3 stands for rock paper scissors combined with tic-tac-toe.", board);
+add("p", "Warning. Players of this game are known to forget their identities every time they stare at the board. Please write your given name down.", board);
+add("p", "There is a telephone keypad that you can use to play the game.", board);
+add("p", "Keys 1 to 9 are square keys, while star, 0 and pound are object keys.", board);
+add("p", "Warning: Keypads may occasionally become unstable. Please use with care.", board);
+add("p", "The game has 3 stages, and it will reset to stage 1 as long as the game is in progress.", board);
+add("p", "On stage 1, you must press one of the object keys. Star is for rock, 0 is for paper, and pound is for scissors. After you choose, the opponent will choose automatically.", board);
+add("p", "You must choose an object before you are forced to do so. The winner of this stage will enter the next stage.", board);
+add("p", "Warning. This stage is known to alter the perception of time.", board);
+add("p", "In stage 2, the winner must fill one of the squares in the 3 by 3 grid using the square keys. Once a square is filled, the winner is awarded 1 point.", board);
+add("p", "Warning. The scoreboard has sharp edges and is not maintained properly.", board);
+add("p", "This game was supposed to be ordinary rock paper scissors or tic tac toe. Unfortunately, combining them have accidentally resulted in the creation of chemical reactions known as Rock Tick, Paper Tax, and Scissor Toes.", board);
+add("p", "To manage these chemical reactions, a die will be rolled once stage 2 has been completed. If the result of the roll is greater than 3, the playing field will be modified, depending on the winner's chosen object back in stage 1.", board);
+add("p", "However, the die can only contain half of these chemical reactions. Please watch the playing field carefully to increase the chance of avoiding consequences.", board);
+add("p", "Rock ticks are known to give the winner one more second of decision time by stealing it from the opponent.", board);
+add("p", "Paper Tax has been recorded to summon an officer that will steal one point from the opponent.", board);
+add("p", "Scissor toes are lethal weapons skilled in slicing toes off.", board);
+add("p", "Warning. Due to their unpredictable nature, information about the mentioned chemical reactions are currently unreliable.", board);
+add("p", "These are the instructions on how to play. Stay safe and have fun, X.", board);
+}
+
+//Reset game function
+function reset_game()
+{
+clear(board);
+dial.reset();
+game_stage=0;
+opponent.reset(true);
+player.reset(true);
+winner=null;
+main_menu();
+}
+
+//Game run
+say("Processing "+random(0, 2000000000)+" bars of data, please wait...");
+setTimeout(()=>main_menu(), random(3000, 9000));
+
+//End of fun
+
+</script>
+</body>
+</html>

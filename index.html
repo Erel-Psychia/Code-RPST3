@@ -9,7 +9,7 @@
 //Start of fun
 
 //Random number generator
-function random(min, max)
+function random(min, max, loyal)
 {
 return min+Math.floor(Math.random()*(max-min+1));
 }
@@ -347,7 +347,7 @@ say(player.name+" is stunned!");
 winner=opponent;
 //Take the stun and move on
 player.stun=false;
-setTimeout(()=>second_stage(), random(3000, 9000));
+stage_time=setTimeout(()=>second_stage(), random(3000, 9000));
 return;
 }
 //Otherwise, announce and record the player move
@@ -362,7 +362,7 @@ say(player_status+" "+opponent.name+" is stunned!");
 winner=player;
 //Take the stun and move on
 opponent.stun=false;
-setTimeout(()=>second_stage(), random(3000, 9000));
+stage_time=setTimeout(()=>second_stage(), random(3000, 9000));
 return;
 }
 //Otherwise, create opponent move
@@ -374,7 +374,7 @@ opponent.move=anti_choice;
 if(choice===anti_choice)
 {
 say(player_status+" "+opponent_status+" Draw! Try again.");
-setTimeout(()=>first_stage(), random(3000, 9000));
+stageTime=setTimeout(()=>first_stage(), random(3000, 9000));
 return;
 }
 //Player wins
@@ -382,14 +382,14 @@ if((choice===0&&anti_choice===2)||(choice===(anti_choice-1)))
 {
 say(player_status+" "+opponent_status+" Victory!");
 winner=player;
-setTimeout(()=>second_stage(), random(3000, 9000));
+stage_time=setTimeout(()=>second_stage(), random(3000, 9000));
 }
 //Opponent wins
 else if((anti_choice===0&&choice===2)||(anti_choice===(choice-1)))
 {
 say(player_status+" "+opponent_status+" Defeat!");
 winner=opponent;
-setTimeout(()=>second_stage(), random(3000, 9000));
+stage_time=setTimeout(()=>second_stage(), random(3000, 9000));
 //Allow the opponent to make automatic decisions
 const thoughtful_winner=winner;
 if(thoughtful_winner!==null)
@@ -457,7 +457,7 @@ target.textContent=winner.marker;
 target.disabled=true;
 //Give the winner a score and check for winning conditions
 winner.score++;
-setTimeout(()=>check_outcome(), random(300, 900));
+stage_time=setTimeout(()=>check_outcome(), random(300, 900));
 }
 
 //Check for winning conditions
@@ -479,19 +479,19 @@ return;
 if(winner.check_victory()===true)
 {
 say(winner.name+" forms a winning line. Congratulations! Experiment "+random(0, 2000000000)+" is now complete. The information gathered is invaluable. Thank you for your participation.");
-setTimeout(()=>main_menu(), random(7000, 21000));
+stage_time=setTimeout(()=>main_menu(), random(7000, 21000));
 return;
 }
 //Check if the squares are full
 if(dial.full()===true)
 {
 say("All squares are full! Game over.");
-setTimeout(()=>main_menu(), random(7000, 21000));
+stage_time=setTimeout(()=>main_menu(), random(7000, 21000));
 return;
 }
 //Otherwise, manage chemical reactions
 say("Calculating "+random(0, 2000000000)+" possibilities, please wait...");
-setTimeout(()=>roll_dice(), random(3000, 9000));
+stage_time=setTimeout(()=>roll_dice(), random(3000, 9000));
 }
 
 //Manage chemical reactions
@@ -678,7 +678,7 @@ victory="===";
 }
 //Display victory text and go back to first stage
 say(victory);
-setTimeout(()=>first_stage(), random(3000, 9000));
+stage_time=setTimeout(()=>first_stage(), random(3000, 9000));
 }
 
 //Playing guide construction
@@ -725,7 +725,7 @@ main_menu();
 
 //Game run
 say("Processing "+random(0, 2000000000)+" bars of data, please wait...");
-setTimeout(()=>main_menu(), random(3000, 9000));
+stage_time=setTimeout(()=>main_menu(), random(3000, 9000));
 
 //End of fun
 

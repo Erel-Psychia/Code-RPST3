@@ -8,10 +8,34 @@
 
 //Start of fun
 
+//Game spirit
+const happiness_roof=10;
+const happiness_root=2;
+let happiness=0;
+
 //Random number generator
 function random(min, max, loyal)
 {
+if(loyal===true)
+return min+Math.random()*(max-min);
 return min+Math.floor(Math.random()*(max-min+1));
+}
+
+//Stutter text
+function stutter(text, frequent)
+{
+text=String(text);
+const last_text=text.length;
+let new_text="";
+for(let number=0; number<last_text; number++)
+{
+const chance=random(1, happiness_roof, frequent);
+if(chance<happiness)
+new_text+="-"+text[number];
+else
+new_text+=text[number];
+}
+return new_text;
 }
 
 //Element event attachment
@@ -24,12 +48,15 @@ element_target.addEventListener("click", element_function);
 function add(element_name, element_text=null, element_parent=null)
 {
 const target=document.createElement(element_name);
-target.textContent=element_text;
+if(element_text!==null)
+target.textContent=stutter(element_text);
 if(random(0, 3)===0)
-target.style.fontSize=random(0, 2, true)+"rem";
-target.style.margin=random(5, 25)+"px";
+target.style.fontSize=random(0.5, 1.5, true)+"rem";
+if(random(0, 3)===0)
+target.style.letterSpacing=random(0.1, 0.3, true)+"rem";
 if(random(0, 3)===0)
 target.style.transform="rotate("+random(-25, 25)+"deg)";
+target.style.margin=random(5, 15)+"px";
 if(element_parent===false)
 return target;
 if(element_parent!==null)
@@ -51,21 +78,34 @@ function color(element_target, element_color)
 element_target.style.background=element_color;
 }
 
-//Interface objects
+//Interface building
 const bar=add("div");
 const board=add("div");
 const status=add("p");
 
 //Interface foundation
-status.style.background="cyan";
-status.style.fontSize="2rem";
+color(status, "cyan");
 status.setAttribute("aria-live", "polite");
 status.setAttribute("aria-atomic", "true");
 
 //Accessible text announcer
 function say(status_text)
 {
-status.textContent=status_text;
+//Sometimes become happier
+if(random(0, 3)===0)
+{
+happiness+=random(0.001, 0.003, true);
+//Keep happiness regulated
+if(happiness<0)
+happiness=0;
+else if(happiness>happiness_roof)
+happiness=happiness_roof;
+status.style.fontSize=(happiness_root+happiness)+"rem";
+status.style.letterSpacing=happiness+"rem";
+status.style.transform="rotate("+happiness+"deg)";
+}
+//Stutter and announce
+status.textContent=stutter(status_text, true);
 }
 
 //Game stage and time trackers
@@ -74,12 +114,26 @@ let opponent_time=null;
 let player_time=null;
 let stage_time=null;
 
-//Clear time trackers
+//Stop tracking for all time
 function stop_tracking()
 {
-clearTimeout(opponent_time);
-clearTimeout(player_time);
-clearTimeout(stage_time);
+opponent_time=untrack(opponent_time);
+player_time=untrack(player_time);
+stage_time=untrack(stage_time);
+}
+
+//Start tracking
+function track(timer_name, timer_function, timer_duration)
+{
+untrack(timer_name);
+return setTimeout(timer_function, timer_duration);
+}
+
+//Stop tracking
+function untrack(timer_name)
+{
+clearTimeout(timer_name);
+return null;
 }
 
 //Game menu construction
@@ -88,20 +142,23 @@ function main_menu()
 //Clear game interface, stage, and time trackers
 clear(bar);
 clear(board);
+dial.reset();
 game_stage=0;
 stop_tracking();
 //Greet and build
-say("Welcome to Code RPST3");
+say("Displaying entrance...");
 add("h1", "Code RPST3", bar);
 let target;
 target=add("button", "Play", board);
 action(target, ()=>play_game());
+color(target, "black");
 target=add("button", "How to play", board);
 action(target, ()=>play_how());
+color(target, "black");
 target=add("button", "Reset", board);
 action(target, ()=>reset_game());
+color(target, "black");
 }
-
 
 //Classes
 class phone
@@ -119,9 +176,6 @@ this.reset();
 //Check if the squares are full
 full()
 {
-//If not in stage 2 or there is no winner, do nothing
-if(game_stage!==2||winner===null)
-return false;
 //Filled square monitor
 let scan=0;
 //Obtain the number of keys
@@ -145,7 +199,7 @@ for(let number=0; number<9; number++)
 {
 const key=add("button", number+1, false);
 color(key, "yellow");
-action(key, ()=>fill_square(key));
+action(key, ()=>fill_square(key, player.marker));
 this.keys.push(key);
 }
 //Prepare object keys
@@ -226,9 +280,12 @@ return this.check_line(1, 2, 3)||this.check_line(4, 5, 6)||this.check_line(7, 8,
 //Press a square randomly
 press()
 {
-//If not in stage 2, do nothing
-if(game_stage!==2)
+//If not in stage 2 or the winner is invalid, do nothing
+if(game_stage!==2||winner!==this)
+{
+say("Forbidden.");
 return;
+}
 //Obtain remaining squares
 const free=dial.keys.filter(key=>key.disabled===false);
 //Obtain the amount of remaining squares
@@ -238,22 +295,24 @@ if(total===0)
 return;
 //Choose a random square and press it
 const target=free[random(0, total-1)];
-fill_square(target);
+fill_square(target, this. marker);
 }
 
 //Reset character completely or optionally provide a name
 reset(mode)
 {
 if(mode===true||this.score===undefined)
+{
 this.score=0;
-else if(typeof mode==="string")
+this.tick=5;
+}
+if(typeof mode==="string")
 {
 this.marker=mode;
 this.name=mode+random(0, 1000);
 }
 this.move=0;
 this.stun=false;
-this.tick=10;
 }
 
 //End
@@ -278,9 +337,9 @@ dial.show();
 //Build the first stage
 function first_stage(first)
 {
-//Adjust game stage and stop time trackers
-game_stage=1;
-stop_tracking();
+//Stop opponent and player time trackers
+opponent_time=untrack(opponent_time);
+player_time=untrack(player_time);
 //Ensure that there are no winners perceived
 winner=null;
 //Update game status
@@ -289,9 +348,10 @@ update_game();
 if(first===true)
 {
 say(player.name+" with a score of "+player.score+" faces off against "+opponent.name+" with a score of "+opponent.score+".");
-player_time=setTimeout(()=>tick_pressure(), random(5000, 15000));
+player_time=track(player_time, ()=>tick_pressure(), random(3000, 9000));
 }
 //Otherwise, perform tick pressure immediately
+else
 tick_pressure();
 }
 
@@ -306,7 +366,9 @@ stage="Stage 1: Rock Paper Scissors.";
 else if(game_stage===2)
 stage="Stage 2: Tic-Tac-Toe.";
 else if(game_stage===3)
-stage="Rolling controller...";
+stage="H2O";
+else
+stage="Decoding "+random(0, 1, true);
 //Build game bar
 let target;
 target=add("h1", stage, bar);
@@ -315,24 +377,26 @@ target=add("p", player.name+". Score: "+player.score+". Ticks: "+player.tick+"."
 color(target, "blue");
 target=add("p", opponent.name+". Score: "+opponent.score+". Ticks: "+opponent.tick+".", bar);
 color(target, "red");
-target=add("button", "pause", bar);
-action(target, ()=>main_menu());
-color(target, "black");
 }
 
 //Pressure the player to choose an object
 function tick_pressure()
 {
+game_stage=1;
+update_game();
 say("Rock Paper Scissors!");
-player_time=setTimeout(()=>choose_object(random(0, 2)), random(200, 600)+(player.tick*1000));
+player_time=track(player_time, ()=>choose_object(random(0, 2)), random(200, 600)+(player.tick*1000));
 }
 
 //The player chooses an object
 function choose_object(choice)
 {
-//If not in stage 1, do nothing
-if(game_stage!==1)
+//If not in stage 1 or a winner is found, do nothing
+if(game_stage!==1||winner!==null)
+{
+say("Unauthorized access to the objects.");
 return;
+}
 //List object names for making move announcements
 const objects=["Rock", "Paper", "Scissors"];
 //Player and opponent status papers
@@ -347,7 +411,7 @@ say(player.name+" is stunned!");
 winner=opponent;
 //Take the stun and move on
 player.stun=false;
-stage_time=setTimeout(()=>second_stage(), random(3000, 9000));
+stage_time=track(stage_time, ()=>second_stage(), random(3000, 9000));
 return;
 }
 //Otherwise, announce and record the player move
@@ -362,7 +426,7 @@ say(player_status+" "+opponent.name+" is stunned!");
 winner=player;
 //Take the stun and move on
 opponent.stun=false;
-stage_time=setTimeout(()=>second_stage(), random(3000, 9000));
+stage_time=track(stage_time, ()=>second_stage(), random(3000, 9000));
 return;
 }
 //Otherwise, create opponent move
@@ -374,74 +438,83 @@ opponent.move=anti_choice;
 if(choice===anti_choice)
 {
 say(player_status+" "+opponent_status+" Draw! Try again.");
-stageTime=setTimeout(()=>first_stage(), random(3000, 9000));
+stage_time=track(stage_time, ()=>first_stage(), random(3000, 9000));
 return;
 }
 //Player wins
 if((choice===0&&anti_choice===2)||(choice===(anti_choice-1)))
 {
 say(player_status+" "+opponent_status+" Victory!");
+happiness+=0.1;
 winner=player;
-stage_time=setTimeout(()=>second_stage(), random(3000, 9000));
+stage_time=track(stage_time, ()=>second_stage(), random(3000, 9000));
 }
 //Opponent wins
 else if((anti_choice===0&&choice===2)||(anti_choice===(choice-1)))
 {
 say(player_status+" "+opponent_status+" Defeat!");
+happiness+=0.2;
 winner=opponent;
-stage_time=setTimeout(()=>second_stage(), random(3000, 9000));
-//Allow the opponent to make automatic decisions
-const thoughtful_winner=winner;
-if(thoughtful_winner!==null)
-opponent_time=setTimeout(()=>thoughtful_winner.press(), random(5000, 15000));
+opponent_time=untrack(opponent_time);
+stage_time=track(stage_time, ()=>second_stage(), random(3000, 9000));
 }
 }
 
 //Build the second stage
 function second_stage()
 {
-//If no one finished the first stage, do nothing
+//If no winner is found, do nothing
 if(winner===null)
 {
-say("No winner from stage 1!");
+say("Unauthorized.");
 return;
 }
-//Clear player time and make an announcement
-clearTimeout(player_time);
+//Otherwise, clear player time
+player_time=untrack(player_time);
+//Check if the squares are full
+if(dial.full()===true)
+{
+game_stage=3;
+say("Operation canceled.");
+stage_time=track(stage_time, ()=>main_menu(), random(5000, 15000));
+return;
+}
+//Otherwise, make an announcement
 say(winner.name+" must now fill an empty square");
 //Adjust game stage and update game
 game_stage=2;
 update_game();
+//Allow the opponent to make automatic decisions
+if(winner===opponent)
+opponent_time=track(opponent_time, ()=>winner.press(), random(3000, 9000));
 }
 
 //A square is filled
-function fill_square(target)
+function fill_square(target, marker)
 {
-//Do not press if there is no winner from stage 1
-if(winner===null)
+//If not in stage 2 or there is no winner, do nothing
+if(game_stage!==2||winner==null)
 {
-say("No winner from stage 1!");
+say("Unauthorized access to the keypad.");
 return;
 }
-//If not in stage 2, do nothing
-if(game_stage!==2)
+//If the marker is invalid, do nothing
+if(marker!==winner.marker)
 {
-say("Currently not in stage 2!");
-return;
-}
-//Do not press if the key is disabled
-if(target.disabled===true)
-{
-say("Occupied square!");
+say("Invalid signiture.");
 return;
 }
 //Have a small chance of not working properly
 if(random(0, 10)===0)
 {
-say("Error. Please try again.");
+say("Unstable key.");
 //Ensure that the opponent will try again
 if(winner===opponent)
-opponent_time=setTimeout(()=>winner.press(), random(5000, 15000));
+{
+const thoughtful_winner=winner;
+if(thoughtful_winner!==null)
+opponent_time=track(opponent_time, ()=>thoughtful_winner.press(), random(3000, 9000));
+}
 return;
 }
 //Otherwise, color the square, mark it, and disable it
@@ -451,47 +524,42 @@ color(target, "orange");
 else if(winner===opponent)
 {
 color(target, "violet");
-clearTimeout(opponent_time);
+opponent_time=untrack(opponent_time);
 }
 target.textContent=winner.marker;
 target.disabled=true;
 //Give the winner a score and check for winning conditions
 winner.score++;
-stage_time=setTimeout(()=>check_outcome(), random(300, 900));
+stage_time=track(stage_time, ()=>third_stage(), random(300, 900));
 }
 
 //Check for winning conditions
-function check_outcome()
+function third_stage()
 {
-//If not in stage 2, do nothing
-if(game_stage!==2)
+//If not in stage 2 or no winner is found, do nothing
+if(game_stage!==2||winner===null)
 {
-say("Currently not in stage 2!");
-return;
-}
-//If there is no winner, do nothing
-if(winner===null)
-{
-say("No winner from stage 1!");
+say("Illogical phenomena.");
 return;
 }
 //Check if the winner has a winning line in the squares
 if(winner.check_victory()===true)
 {
-say(winner.name+" forms a winning line. Congratulations! Experiment "+random(0, 2000000000)+" is now complete. The information gathered is invaluable. Thank you for your participation.");
-stage_time=setTimeout(()=>main_menu(), random(7000, 21000));
+say(winner.name+" forms a winning line. Congratulations! Experiment "+random(0, 2000000000)+" is complete. The information gathered is invaluable. Thank you for your participation.");
+stage_time=track(stage_time, ()=>ending(), random(5000, 15000));
 return;
 }
 //Check if the squares are full
 if(dial.full()===true)
 {
-say("All squares are full! Game over.");
-stage_time=setTimeout(()=>main_menu(), random(7000, 21000));
+say("All squares are full.");
+stage_time=track(stage_time, ()=>main_menu(), random(5000, 15000));
 return;
 }
-//Otherwise, manage chemical reactions
+//Manage chemical reactions
+game_stage=3;
 say("Calculating "+random(0, 2000000000)+" possibilities, please wait...");
-stage_time=setTimeout(()=>roll_dice(), random(3000, 9000));
+stage_time=track(stage_time, ()=>roll_dice(), random(3000, 9000));
 }
 
 //Manage chemical reactions
@@ -516,7 +584,7 @@ else if(winner===opponent)
 suffer=player;
 //Random insulting paper
 const victory_kind=random(1, 10);
-let victory="Chemical reaction suppressed";
+let victory="";
 //If the roll is high, change the playing field
 if(dice>3)
 {
@@ -546,7 +614,7 @@ victory="Rock guitars are ticking!";
 if(victory_kind===9)
 victory="Your points suffered rock damage!";
 if(victory_kind===10)
-victory="Earthquake...";
+victory="Earthquake detected.";
 }
 //Time empty
 else
@@ -558,9 +626,9 @@ victory="0 seconds, "+suffer.name+"!";
 if(victory_kind===3)
 victory="Someone's clock was taken by the rock!";
 if(victory_kind===4)
-victory="No more decisions for "+suffer.name+"...";
+victory=suffer.name+" can no longer make decisions.";
 if(victory_kind===5)
-victory="The world is moving too quickly.";
+victory="Tracking failure.";
 if(victory_kind===6)
 victory="Clock stolen!";
 if(victory_kind===7)
@@ -587,7 +655,7 @@ victory="Taxy or tax?";
 if(victory_kind===3)
 victory=suffer.name+" has paid the tax of defeat!";
 if(victory_kind===4)
-victory=suffer.name+" must pay...";
+victory=suffer.name+" must pay.";
 if(victory_kind===5)
 victory="The tax officer collects one point from "+suffer.name+".";
 if(victory_kind===6)
@@ -621,7 +689,7 @@ victory="Empty hand!";
 if(victory_kind===8)
 victory="Rich!";
 if(victory_kind===9)
-victory="Poor...";
+victory="Poor.";
 if(victory_kind===10)
 victory="No more scores.";
 }
@@ -651,34 +719,84 @@ victory=suffer.name+" have lost their toes!";
 if(victory_kind===10)
 victory="Unable to move.";
 }
+}
 //Nothing happened
 else
 {
 if(victory_kind===1)
-victory="...";
+victory="Wall";
 if(victory_kind===2)
-victory="???";
+victory="Door";
 if(victory_kind===3)
-victory="---";
+victory="Window";
 if(victory_kind===4)
-victory="___";
+victory="Shelf";
 if(victory_kind===5)
-victory="***";
-if(victory_kind===6)
-victory="!!!";
+victory="Curtain";
 if(victory_kind===7)
-victory=":::";
+victory="House";
 if(victory_kind===8)
-victory="+++";
+victory="Shelter";
 if(victory_kind===9)
-victory="$$$";
+victory="Void";
 if(victory_kind===10)
-victory="===";
-}
+victory="Unknown";
 }
 //Display victory text and go back to first stage
 say(victory);
-stage_time=setTimeout(()=>first_stage(), random(3000, 9000));
+stage_time=track(stage_time, ()=>first_stage(), random(3000, 9000));
+}
+
+//Game ending
+function ending()
+{
+clear(bar);
+clear(board);
+stop_tracking();
+if(random(1, happiness_roof)>happiness)
+{
+say("Extracting memories, please wait...");
+const target=add("h1", "Muwa, ha, ha, ha, ha, ha, ha!", bar);
+let current_margin=0;
+let current_rotation=0;
+let current_size=1;
+let current_spacing=0;
+let current_time=0;
+let last_time=random(10000, 30000);
+while(current_time<last_time)
+{
+current_margin=ending_adjust(current_margin);
+current_rotation=ending_adjust(current_rotation);
+current_size=ending_adjust(current_size);
+current_spacing=ending_adjust(current_spacing);
+current_time+=random(100, 300);
+stage_time=track(stage_time, ()=>ending_dance(target, current_margin, current_rotation, current_size, current_spacing), current_time);
+}
+stage_time=track(stage_time, ()=>main_menu(), last_time+random(3000, 9000));
+}
+else
+{
+say("Victory deleted");
+stage_time=track(stage_time, ()=>play_game(), random(3000, 9000));
+}
+}
+
+//Game ending adjustment for laughter parameters
+function ending_adjust(number)
+{
+number+=random(-3, 3);
+if(number<0)
+number=0;
+return number;
+}
+
+//Game ending dance
+function ending_dance(target, margin, rotation, size, spacing)
+{
+target.style.margin=margin+"px";
+target.style.transform="rotate("+rotation+"deg)";
+target.style.fontSize=size+"px";
+target.style.letterSpacing=spacing+"px";
 }
 
 //Playing guide construction
@@ -686,8 +804,10 @@ function play_how()
 {
 clear(bar);
 clear(board);
-let target;
+stop_tracking();
+say("Displaying guidance...");
 add("h1", "How to play", bar);
+let target;
 target=add("button", "Back to main menu", bar);
 action(target, main_menu);
 add("p", "RPST3 stands for rock paper scissors combined with tic-tac-toe.", board);
@@ -695,9 +815,9 @@ add("p", "Warning. Players of this game are known to forget their identities eve
 add("p", "There is a telephone keypad that you can use to play the game.", board);
 add("p", "Keys 1 to 9 are square keys, while star, 0 and pound are object keys.", board);
 add("p", "Warning: Keypads may occasionally become unstable. Please use with care.", board);
-add("p", "The game has 3 stages, and it will reset to stage 1 as long as the game is in progress.", board);
-add("p", "On stage 1, you must press one of the object keys. Star is for rock, 0 is for paper, and pound is for scissors. After you choose, the opponent will choose automatically.", board);
-add("p", "You must choose an object before you are forced to do so. The winner of this stage will enter the next stage.", board);
+add("p", "The game has 3 stages. It will last until a winning or losing condition is met.", board);
+add("p", "On stage 1, you must press one of the object keys. Star is for rock, 0 is for paper, and pound is for scissors. After you choose an object key, the opponent will choose automatically.", board);
+add("p", "Make your decision before you are forced to do so. The winner of this stage will enter the next stage.", board);
 add("p", "Warning. This stage is known to alter the perception of time.", board);
 add("p", "In stage 2, the winner must fill one of the squares in the 3 by 3 grid using the square keys. Once a square is filled, the winner is awarded 1 point.", board);
 add("p", "Warning. The scoreboard has sharp edges and is not maintained properly.", board);
@@ -725,7 +845,7 @@ main_menu();
 
 //Game run
 say("Processing "+random(0, 2000000000)+" bars of data, please wait...");
-stage_time=setTimeout(()=>main_menu(), random(3000, 9000));
+stage_time=track(stage_time, ()=>main_menu(), random(3000, 9000));
 
 //End of fun
 
